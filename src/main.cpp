@@ -1,14 +1,14 @@
 #include <esp_now.h>
 #include <WiFi.h>
 #include <driver/twai.h>
-
+//testing
 // Replace with the receiver ESP32's MAC address
 uint8_t receiverMacAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; // Update with actual MAC
 
 // TWAI pin definitions using gpio_num_t
 #define TWAI_TX_PIN GPIO_NUM_21
 #define TWAI_RX_PIN GPIO_NUM_22
-
+ 
 // Timing variables for 10 Hz (100ms interval)
 unsigned long lastSendTime = 0;
 const unsigned long sendInterval = 100; // 100ms = 10 Hz
