@@ -23,10 +23,18 @@ const unsigned long sendInterval = 100; // 100ms = 10 Hz
 // Variable to store the latest RPM
 uint16_t latestRpm = 0;
 
+// === Added for CAN bus debugging ===
+unsigned long lastDebugPrint = 0;
+const unsigned long debugInterval = 1000; // Debug output every 1s
+uint32_t rxMsgCount = 0; // Count of received messages
+uint32_t errorCount = 0; // Count of CAN errors
+bool canConnected = false; // CAN bus connection status
+// ================================
+
 // ESP-Now callback function
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  Serial.print("Last Packet Send Status: ");
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+  // Serial.print("Last Packet Send Status: ");
+  // Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
 }
 
 void setup() {
@@ -49,6 +57,7 @@ void setup() {
     while (1);
   }
   Serial.println("TWAI initialized");
+  canConnected = true; // Set initial CAN connection status
 #else
   Serial.println("RPM simulation enabled");
 #endif
@@ -99,18 +108,55 @@ void loop() {
     latestRpm = 1000 + (uint16_t)(8000 * cycleTime / 10.0);
   } else {
     // Ramp-down: 9000 to 1000
-    latestRpm = 9009 - (uint16_t)(8000 * (cycleTime - 10.0) / 10.0);
+    latestRpm = 9000 - (uint16_t)(8000 * (cycleTime - 10.0) / 10.0);
   }
 #else
+  // Check CAN bus status
+  twai_status_info_t status;
+  twai_get_status_info(&status);
+  
+  // Check for bus-off state and attempt recovery
+  if (status.state == TWAI_STATE_BUS_OFF) {
+    if (canConnected) {
+      Serial.println("CAN Bus-off detected, attempting recovery");
+      canConnected = false;
+      twai_initiate_recovery();
+    }
+  } else if (status.state == TWAI_STATE_STOPPED) {
+    if (canConnected) {
+      Serial.println("CAN Bus stopped, restarting");
+      canConnected = false;
+      twai_start();
+    }
+  } else if (status.state == TWAI_STATE_RUNNING) {
+    canConnected = true;
+  }
+
   // Check for TWAI message
   twai_message_t message;
-  if (twai_receive(&message, pdMS_TO_TICKS(10)) == ESP_OK) {
+  esp_err_t result = twai_receive(&message, pdMS_TO_TICKS(10));
+  if (result == ESP_OK) {
+    rxMsgCount++;
     if (message.identifier == 0x316 && message.data_length_code >= 4) {
-      // Extract scaled RPM (little-endian, unsigned, offset 2, length 2)
-      uint16_t scaled_rpm = (message.data[3] << 8) | message.data[2]; // Little-endian: data[2] is LSB, data[3] is MSB
-      // Calculate actual RPM
-      latestRpm = (uint16_t)(scaled_rpm / 6.4);
+      // Extract RPM (little-endian, unsigned, offset 2, length 2)
+      uint16_t rawRpm = (message.data[3] << 8) | message.data[2]; // Little-endian: data[2] is LSB, data[3] is MSB
+      latestRpm = rawRpm / 6.4; // Apply new RPM formula: value / 6.4
+      // Debug: Print received message details
+      Serial.printf("CAN Msg: ID=0x%X, DLC=%d, Data=[%02X %02X %02X %02X], Raw RPM=%d, Scaled RPM=%d\n",
+                    message.identifier, message.data_length_code,
+                    message.data[0], message.data[1], message.data[2], message.data[3], rawRpm, latestRpm);
     }
+  } else if (result != ESP_ERR_TIMEOUT) {
+    errorCount++;
+    Serial.printf("TWAI receive error: 0x%X\n", result);
+  }
+
+  // Periodic debug output
+  if (currentTime - lastDebugPrint >= debugInterval) {
+    Serial.printf("CAN Status: %s, Rx Count: %lu, Errors: %lu, Bus Errors: %lu,  Rx Missed: %lu\n",
+                  canConnected ? "Connected" : "Disconnected",
+                  rxMsgCount, errorCount, status.bus_error_count, status.rx_missed_count);
+    lastDebugPrint = currentTime;
   }
 #endif
 
@@ -118,12 +164,11 @@ void loop() {
   if (currentTime - lastSendTime >= sendInterval) {
     esp_err_t result = esp_now_send(receiverMacAddress, (uint8_t *)&latestRpm, sizeof(latestRpm));
     if (result == ESP_OK) {
-      Serial.print("Sent RPM: ");
-      Serial.println(latestRpm);
+      // Serial.print("Sent RPM: ");
+      // Serial.println(latestRpm);
     } else {
       Serial.println("Error sending the data");
     }
     lastSendTime = currentTime;
   }
 }
-
