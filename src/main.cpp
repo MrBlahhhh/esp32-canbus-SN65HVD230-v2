@@ -4,7 +4,7 @@
 #include <driver/twai.h>
 
 // Simulator option: Uncomment to simulate RPM, comment to use CAN bus
-#define SIMULATE_RPM
+//#define SIMULATE_RPM
 
 // Replace with the receiver ESP32's MAC address
 uint8_t receiverMacAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; // Update with actual MAC
@@ -99,15 +99,17 @@ void loop() {
     latestRpm = 1000 + (uint16_t)(8000 * cycleTime / 10.0);
   } else {
     // Ramp-down: 9000 to 1000
-    latestRpm = 9000 - (uint16_t)(8000 * (cycleTime - 10.0) / 10.0);
+    latestRpm = 9009 - (uint16_t)(8000 * (cycleTime - 10.0) / 10.0);
   }
 #else
   // Check for TWAI message
   twai_message_t message;
   if (twai_receive(&message, pdMS_TO_TICKS(10)) == ESP_OK) {
-    if (message.identifier == 0x790 && message.data_length_code >= 4) {
-      // Extract RPM (little-endian, unsigned, offset 2, length 2)
-      latestRpm = (message.data[3] << 8) | message.data[2]; // Little-endian: data[2] is LSB, data[3] is MSB
+    if (message.identifier == 0x316 && message.data_length_code >= 4) {
+      // Extract scaled RPM (little-endian, unsigned, offset 2, length 2)
+      uint16_t scaled_rpm = (message.data[3] << 8) | message.data[2]; // Little-endian: data[2] is LSB, data[3] is MSB
+      // Calculate actual RPM
+      latestRpm = (uint16_t)(scaled_rpm / 6.4);
     }
   }
 #endif
@@ -124,3 +126,4 @@ void loop() {
     lastSendTime = currentTime;
   }
 }
+
