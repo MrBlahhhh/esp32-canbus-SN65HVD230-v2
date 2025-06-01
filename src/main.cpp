@@ -4,7 +4,7 @@
 #include <driver/gpio.h> // Added to define GPIO_NUM_X constants
 
 // Simulator option: Uncomment to simulate RPM, comment to use CAN bus
-#define SIMULATE_RPM
+//#define SIMULATE_RPM
 
 // LED Pin Definitions
 #define LED_PIN GPIO_NUM_4  // GPIO4 for WS2812B data line purple wire
@@ -25,17 +25,22 @@ bool redBlinkState = false;
 unsigned long lastBlinkTime = 0;
 const unsigned long blinkInterval = 100; // 100ms for 5Hz blink (on/off) at 7100+ RPM
 
+<<<<<<< HEAD
 // RPM simulation timing
 unsigned long lastSimTime = 0;
 const unsigned long simInterval = 100; // Update simulation every 100ms
 const unsigned long simPeriod = 20000; // 20-second cycle for RPM simulation
 
 // CAN bus debugging
+=======
+// === Added for CAN bus debugging ===
+>>>>>>> 9e86d6dccc65c649887e8499727ea5544f8fbae5
 unsigned long lastDebugPrint = 0;
 const unsigned long debugInterval = 1000; // Debug output every 1s
 uint32_t rxMsgCount = 0; // Count of received messages
 uint32_t errorCount = 0; // Count of CAN errors
 bool canConnected = false; // CAN bus connection status
+<<<<<<< HEAD
 
 CRGB leds[NUM_LEDS];
 uint16_t rpm = 0; // Current RPM value
@@ -43,6 +48,15 @@ uint16_t rpm = 0; // Current RPM value
 // Function prototypes
 void updateLEDs();
 void simulateRPM();
+=======
+// ================================
+
+// ESP-Now callback function
+void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  // Serial.print("Last Packet Send Status: ");
+  // Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+}
+>>>>>>> 9e86d6dccc65c649887e8499727ea5544f8fbae5
 
 void setup() {
   Serial.begin(115200);
@@ -111,12 +125,23 @@ void loop() {
   esp_err_t result = twai_receive(&message, pdMS_TO_TICKS(10));
   if (result == ESP_OK) {
     rxMsgCount++;
+<<<<<<< HEAD
     if (message.identifier == 0x790 && message.data_length_code >= 4) {
       // Extract RPM (little-endian, unsigned, offset 2, length 2)
       rpm = (message.data[3] << 8) | message.data[2]; // Little-endian: data[2] is LSB, data[3] is MSB
       Serial.printf("CAN Msg: ID=0x%X, DLC=%d, Data=[%02X %02X %02X %02X], RPM=%d\n",
                     message.identifier, message.data_length_code,
                     message.data[0], message.data[1], message.data[2], message.data[3], rpm);
+=======
+    if (message.identifier == 0x316 && message.data_length_code >= 4) {
+      // Extract RPM (little-endian, unsigned, offset 2, length 2)
+      uint16_t rawRpm = (message.data[3] << 8) | message.data[2]; // Little-endian: data[2] is LSB, data[3] is MSB
+      latestRpm = rawRpm / 6.4; // Apply new RPM formula: value / 6.4
+      // Debug: Print received message details
+      Serial.printf("CAN Msg: ID=0x%X, DLC=%d, Data=[%02X %02X %02X %02X], Raw RPM=%d, Scaled RPM=%d\n",
+                    message.identifier, message.data_length_code,
+                    message.data[0], message.data[1], message.data[2], message.data[3], rawRpm, latestRpm);
+>>>>>>> 9e86d6dccc65c649887e8499727ea5544f8fbae5
     }
   } else if (result != ESP_ERR_TIMEOUT) {
     errorCount++;
@@ -125,18 +150,35 @@ void loop() {
 
   // Periodic debug output
   if (currentTime - lastDebugPrint >= debugInterval) {
+<<<<<<< HEAD
     Serial.printf("CAN Status: %s, Rx Count: %lu, Errors: %lu, Bus Errors: %lu, Rx Missed: %lu\n",
+=======
+    Serial.printf("CAN Status: %s, Rx Count: %lu, Errors: %lu, Bus Errors: %lu,  Rx Missed: %lu\n",
+>>>>>>> 9e86d6dccc65c649887e8499727ea5544f8fbae5
                   canConnected ? "Connected" : "Disconnected",
                   rxMsgCount, errorCount, status.bus_error_count, status.rx_missed_count);
     lastDebugPrint = currentTime;
   }
 #endif
 
+<<<<<<< HEAD
   // Update LEDs at 10 Hz
   if (currentTime - lastUpdateTime >= updateInterval) {
     updateLEDs();
     FastLED.show();
     lastUpdateTime = currentTime;
+=======
+  // Send RPM at 10 Hz (every 100ms)
+  if (currentTime - lastSendTime >= sendInterval) {
+    esp_err_t result = esp_now_send(receiverMacAddress, (uint8_t *)&latestRpm, sizeof(latestRpm));
+    if (result == ESP_OK) {
+      // Serial.print("Sent RPM: ");
+      // Serial.println(latestRpm);
+    } else {
+      Serial.println("Error sending the data");
+    }
+    lastSendTime = currentTime;
+>>>>>>> 9e86d6dccc65c649887e8499727ea5544f8fbae5
   }
 }
 
