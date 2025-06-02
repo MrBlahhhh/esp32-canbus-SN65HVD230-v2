@@ -3,7 +3,7 @@
 #include <driver/gpio.h> // Added to define GPIO_NUM_X constants
 
 // Simulator option: Uncomment to simulate RPM, comment to use CAN bus
-#define SIMULATE_RPM
+//#define SIMULATE_RPM
 
 // LED Pin Definitions
 #define LED_PIN GPIO_NUM_4  // GPIO4 for WS2812B data line
@@ -71,7 +71,6 @@ void setup() {
 #else
   Serial.println("RPM simulation enabled");
 #endif
-
 }
 
 void loop() {
@@ -110,9 +109,10 @@ void loop() {
   esp_err_t result = twai_receive(&message, pdMS_TO_TICKS(10));
   if (result == ESP_OK) {
     rxMsgCount++;
-    if (message.identifier == 0x790 && message.data_length_code >= 4) {
+    if (message.identifier == 0x316 && message.data_length_code >= 4) {
       // Extract RPM (little-endian, unsigned, offset 2, length 2)
-      rpm = (message.data[3] << 8) | message.data[2]; // Little-endian: data[2] is LSB, data[3] is MSB
+      uint16_t raw_rpm = (message.data[3] << 8) | message.data[2]; // Little-endian: data[2] is LSB, data[3] is MSB
+      rpm = raw_rpm / 6.4; // Apply new RPM formula
       Serial.printf("CAN Msg: ID=0x%X, DLC=%d, Data=[%02X %02X %02X %02X], RPM=%d\n",
                     message.identifier, message.data_length_code,
                     message.data[0], message.data[1], message.data[2], message.data[3], rpm);
