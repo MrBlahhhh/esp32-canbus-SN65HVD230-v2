@@ -111,11 +111,11 @@ void loop() {
     rxMsgCount++;
     if (message.identifier == 0x316 && message.data_length_code >= 4) {
       // Extract RPM (little-endian, unsigned, offset 2, length 2)
-      latestRpm = (message.data[3] << 8) | message.data[2]; // Little-endian: data[2] is LSB, data[3] is MSB
-      // Debug: Print received message details
+      uint16_t raw_rpm = (message.data[3] << 8) | message.data[2]; // Little-endian: data[2] is LSB, data[3] is MSB
+      rpm = raw_rpm / 6.4; // Apply new RPM formula
       Serial.printf("CAN Msg: ID=0x%X, DLC=%d, Data=[%02X %02X %02X %02X], RPM=%d\n",
                     message.identifier, message.data_length_code,
-                    message.data[0], message.data[1], message.data[2], message.data[3], latestRpm);
+                    message.data[0], message.data[1], message.data[2], message.data[3], rpm);
     }
   } else if (result != ESP_ERR_TIMEOUT) {
     errorCount++;
